@@ -1,0 +1,37 @@
+name: Build and publish Docker image for the backend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          tags: ghcr.io/${{ github.repository }}:latest
+          build-args: |
+            MYSQL_HOST=4.232.180.247
+            MYSQL_USER=aui
+            MYSQL_PASSWORD=i3lab-aui21-mell
+            MYSQL_DATABASE=aui
+            AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=aui;AccountKey=wIXNZnhQxQGVKoGcR8UXyEZvr7SQZuL6Z2E74cPyA8pzYPYxIm2fisRkHOZue+i6m8FS+acOWTDn+AStsMhLiw==;EndpointSuffix=core.windows.net"
+            AZURE_CONTAINER_NAME="uploads"

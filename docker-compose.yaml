@@ -1,0 +1,27 @@
+services:
+  node-backend:
+    container_name: rapportini-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MYSQL_HOST: ${DB_HOST}
+        MYSQL_PORT: ${DB_PORT}
+        MYSQL_USER: ${DB_USER}
+        MYSQL_PASSWORD: ${DB_PASSWORD}
+        MYSQL_DB: ${DB_NAME}
+    networks:
+      - aui-internal
+    restart: always
+
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT}
+
+networks:
+  aui-internal:
+    name: aui-internal
+    external: true
