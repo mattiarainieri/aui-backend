@@ -1,8 +1,13 @@
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+require('dotenv').config()
 
 const isAuth = require(path.join(__dirname, 'middleware', 'isAuth'));
+
+// add bcrypt and db pool
+const bcrypt = require('bcrypt');
+const db = require(path.join(__dirname, 'lib', 'db'));
 
 const app = express();
 app.use(express.json());
@@ -26,6 +31,7 @@ const sessionStore = new MySQLStore(mysqlOptions);
 app.set('trust proxy', 1); // if testing behind a proxy (optional for dev)
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
 
+// IMPORTANT: mount session middleware before any route that relies on req.session / isAuth
 app.use(
   session({
     name: 'sid', // session cookie name
@@ -42,7 +48,17 @@ app.use(
   })
 );
 
+// mount whoami route (place after other app.use(...) calls and before app.listen)
+app.use('/whoami', isAuth, require(path.join(__dirname, 'routes', 'whoami')));
+
+// mount register route
+app.use('/register', require(path.join(__dirname, 'routes', 'register')));
+
+// mount cards route
+app.use('/cards', isAuth, require(path.join(__dirname, 'routes', 'cards', 'cards')));
+
 // Test endpoint: increments a session counter and returns session data
+// OCIO DA TOGLIERE IN PRODUZIONE CHE ALTRIMENTI PERMETTE DI FARE UN XSS COI COOKIE
 app.get('/test', (req, res) => {
   req.session.views = (req.session.views || 0) + 1;
   res.json({
@@ -53,15 +69,52 @@ app.get('/test', (req, res) => {
   });
 });
 
-// Small login endpoint to demonstrate setting a session user
-app.post('/login', (req, res) => {
-  // In real app validate credentials from req.body
-  const demoUser = { id: 'dev-user', name: 'Developer' };
-  req.session.user = demoUser;
-  // Optional: regenerate session to mitigate fixation
-  // req.session.regenerate(() => { req.session.user = demoUser; res.json({ ok: true, user: demoUser }); });
-  res.json({ ok: true, user: demoUser });
+// Updated login endpoint: authenticate against users table and set session.user
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body || {};
+
+  const errors = {};
+  if (!email || typeof email !== 'string' || !email.trim()) errors.email = 'Email is required';
+  if (!password || typeof password !== 'string') errors.password = 'Password is required';
+  if (Object.keys(errors).length) return res.status(400).json({ ok: false, error: 'validation', details: errors });
+
+  const emailNorm = email.trim().toLowerCase();
+
+  try {
+    const [rows] = await db.execute(
+      'SELECT id, name, surname, email, password_hash FROM users WHERE email = ? LIMIT 1',
+      [emailNorm]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(401).json({ ok: false, error: 'invalid_credentials' });
+    }
+
+    const user = rows[0];
+    const match = await bcrypt.compare(password, user.password_hash);
+    if (!match) {
+      return res.status(401).json({ ok: false, error: 'invalid_credentials' });
+    }
+
+    // regenerate session to mitigate fixation, then set user
+    req.session.regenerate((err) => {
+      const safeUser = { id: user.id, name: user.name, surname: user.surname, email: user.email };
+      if (err) {
+        console.error('session regenerate error', err);
+        // fallback: set user on existing session and return success
+        req.session.user = safeUser;
+        return res.json({ ok: true, user: safeUser });
+      }
+
+      req.session.user = safeUser;
+      res.json({ ok: true, user: safeUser });
+    });
+  } catch (err) {
+    console.error('login error', err);
+    res.status(500).json({ ok: false, error: 'internal' });
+  }
 });
+
 
 // Logout: destroy the session
 app.post('/logout', (req, res) => {
@@ -82,5 +135,4 @@ app.get('/private', isAuth, (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}`);
-  console.log('Endpoints: GET /test, POST /login, POST /logout, GET /private');
 });
