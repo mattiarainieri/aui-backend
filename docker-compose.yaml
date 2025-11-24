@@ -1,25 +1,16 @@
 services:
-  node-backend:
-    container_name: rapportini-backend
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        MYSQL_HOST: ${DB_HOST}
-        MYSQL_PORT: ${DB_PORT}
-        MYSQL_USER: ${DB_USER}
-        MYSQL_PASSWORD: ${DB_PASSWORD}
-        MYSQL_DB: ${DB_NAME}
-    networks:
-      - aui-internal
-    restart: always
+  aui-backend:
 
-    environment:
-      - DB_HOST=${DB_HOST}
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_PORT=${DB_PORT}
+    container_name: aui-backend
+
+    restart: always
+    image: ghcr.io/mattiarainieri/aui-backend:latest
+    networks:
+      aui-internal:
+        aliases:
+          - aui-backend
+
+
 
 networks:
   aui-internal:
