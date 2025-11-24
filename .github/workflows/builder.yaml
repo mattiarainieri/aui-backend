@@ -29,7 +29,7 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository }}:latest
           build-args: |
-            MYSQL_HOST=4.232.180.247
+            MYSQL_HOST=aui-db
             MYSQL_USER=aui
             MYSQL_PASSWORD=i3lab-aui21-mell
             MYSQL_DATABASE=aui
