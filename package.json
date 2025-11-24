@@ -30,6 +30,7 @@
     "sharp": "^0.34.5",
     "swagger-autogen": "^2.23.7",
     "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "@azure/storage-blob": "^12.14.0"
   }
 }
