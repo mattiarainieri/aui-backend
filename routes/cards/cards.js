@@ -25,7 +25,7 @@ router.post('/', isAuth, async (req, res) => {
 
     try {
         const [result] = await db.execute(
-            `INSERT INTO ${CARDS_TABLE} (name) VALUES (?)`,
+            `INSERT INTO card (name) VALUES (?)`,
             [name.trim()]
         );
         return res.status(201).json({ ok: true, card: { id: result.insertId, name: name.trim() } });
