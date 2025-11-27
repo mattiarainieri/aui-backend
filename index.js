@@ -57,6 +57,9 @@ app.use('/register', require(path.join(__dirname, 'routes', 'register')));
 // mount cards route
 app.use('/cards', isAuth, require(path.join(__dirname, 'routes', 'cards', 'cards')));
 
+// mount sets route
+app.use('/sets', isAuth, require(path.join(__dirname, 'routes', 'sets', 'sets')));
+
 // Test endpoint: increments a session counter and returns session data
 // OCIO DA TOGLIERE IN PRODUZIONE CHE ALTRIMENTI PERMETTE DI FARE UN XSS COI COOKIE
 app.get('/test', (req, res) => {
