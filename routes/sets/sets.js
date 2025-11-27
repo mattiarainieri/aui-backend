@@ -53,22 +53,40 @@ router.get('/', isAuth, async (req, res) => {
 // --- New endpoints to manage preset <-> card associations ---
 
 // POST /sets/:id/cards
-// Body: { card_id: number }
-// Adds a card to a preset (creates a row in preset_cards)
-router.put('/:id/card', isAuth, async (req, res) => {
+// Body: [{ id: number }]
+// Adds multiple cards to a preset (creates rows in preset_cards). Accepts an array of objects with the form { id: number }.
+router.put('/:id/cards', isAuth, async (req, res) => {
   const presetId = parseInt(req.params.id, 10);
-  const cardId = parseInt((req.body && (req.body.card_id || req.body.cardId)), 10);
   const userId = req.session && req.session.user && req.session.user.id;
 
   if (Number.isNaN(presetId) || presetId <= 0) {
     return res.status(400).json({ ok: false, error: 'validation', details: { presetId: 'Invalid preset id' } });
   }
-  if (Number.isNaN(cardId) || cardId <= 0) {
-    return res.status(400).json({ ok: false, error: 'validation', details: { cardId: 'Invalid card id' } });
-  }
   if (!userId) {
     return res.status(401).json({ ok: false, error: 'Unauthorized' });
   }
+
+  const payload = req.body;
+  if (!Array.isArray(payload) || payload.length === 0) {
+    return res.status(400).json({ ok: false, error: 'validation', details: { body: 'Expected a non-empty array of { id: number }' } });
+  }
+
+  // extract numeric ids and validate shape
+  const cardIds = [];
+  for (let i = 0; i < payload.length; i++) {
+    const item = payload[i];
+    if (!item || typeof item !== 'object' || Number.isNaN(Number(item.id))) {
+      return res.status(400).json({ ok: false, error: 'validation', details: { [`items.${i}`]: 'Each item must be an object with numeric id' } });
+    }
+    const cid = parseInt(item.id, 10);
+    if (cid <= 0) {
+      return res.status(400).json({ ok: false, error: 'validation', details: { [`items.${i}`]: 'id must be a positive integer' } });
+    }
+    cardIds.push(cid);
+  }
+
+  // dedupe cardIds
+  const uniqueCardIds = Array.from(new Set(cardIds));
 
   try {
     // ensure preset exists and belongs to the user
@@ -77,22 +95,39 @@ router.put('/:id/card', isAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: 'preset_not_found' });
     }
 
-    // ensure card exists
-    const [cardRows] = await db.execute('SELECT id FROM card WHERE id = ? LIMIT 1', [cardId]);
-    if (!cardRows || cardRows.length === 0) {
-      return res.status(404).json({ ok: false, error: 'card_not_found' });
+    // ensure cards exist
+    const placeholders = uniqueCardIds.map(() => '?').join(',');
+    const [existingRows] = await db.execute(
+      `SELECT id FROM card WHERE id IN (${placeholders})`,
+      uniqueCardIds
+    );
+
+    const existingIds = new Set((existingRows || []).map((r) => r.id));
+    const missing = uniqueCardIds.filter((id) => !existingIds.has(id));
+    if (missing.length > 0) {
+      return res.status(404).json({ ok: false, error: 'card_not_found', missing });
     }
 
-    // check existing mapping to avoid duplicates
-    const [exist] = await db.execute('SELECT 1 FROM preset_cards WHERE presetid = ? AND cardid = ? LIMIT 1', [presetId, cardId]);
-    if (exist && exist.length > 0) {
-      return res.status(409).json({ ok: false, error: 'already_exists' });
+    if (uniqueCardIds.length === 0) {
+      return res.status(400).json({ ok: false, error: 'validation', details: { body: 'No valid card ids provided' } });
     }
 
-    await db.execute('INSERT INTO preset_cards (presetid, cardid) VALUES (?, ?)', [presetId, cardId]);
-    return res.status(201).json({ ok: true, message: 'card_added' });
+    // build multi-row INSERT IGNORE statement to avoid duplicates
+    const valuesPlaceholders = uniqueCardIds.map(() => '(?, ?)').join(',');
+    const params = [];
+    uniqueCardIds.forEach((cid) => {
+      params.push(presetId, cid);
+    });
+
+    const sql = `INSERT IGNORE INTO preset_cards (presetid, cardid) VALUES ${valuesPlaceholders}`;
+    const [result] = await db.execute(sql, params);
+
+    const inserted = result && typeof result.affectedRows === 'number' ? result.affectedRows : 0;
+    const skipped = uniqueCardIds.length - inserted;
+
+    return res.status(200).json({ ok: true, inserted, skipped, processed: uniqueCardIds.length });
   } catch (err) {
-    console.error('POST /sets/:id/cards error', err);
+    console.error('PUT /sets/:id/cards error', err);
     return res.status(500).json({ ok: false, error: 'internal' });
   }
 });
@@ -144,7 +179,7 @@ router.get('/:id/cards', isAuth, async (req, res) => {
 
 // DELETE /sets/:id/cards/:cardId
 // Remove association between preset and card
-router.delete('/:id/cards/:cardId', isAuth, async (req, res) => {
+router.delete('/:id/card/:cardId', isAuth, async (req, res) => {
   const presetId = parseInt(req.params.id, 10);
   const cardId = parseInt(req.params.cardId, 10);
   const userId = req.session && req.session.user && req.session.user.id;
