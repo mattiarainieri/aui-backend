@@ -8,6 +8,7 @@ const isAuth = require(path.join(__dirname, 'middleware', 'isAuth'));
 // add bcrypt and db pool
 const bcrypt = require('bcrypt');
 const db = require(path.join(__dirname, 'lib', 'db'));
+const swaggerUi = require("swagger-ui-express");
 
 const app = express();
 app.use(express.json());
@@ -61,16 +62,6 @@ app.use('/cards', isAuth, require(path.join(__dirname, 'routes', 'cards', 'cards
 app.use('/sets', isAuth, require(path.join(__dirname, 'routes', 'sets', 'sets')));
 
 // Test endpoint: increments a session counter and returns session data
-// OCIO DA TOGLIERE IN PRODUZIONE CHE ALTRIMENTI PERMETTE DI FARE UN XSS COI COOKIE
-app.get('/test', (req, res) => {
-  req.session.views = (req.session.views || 0) + 1;
-  res.json({
-    message: 'session test',
-    views: req.session.views,
-    sessionId: req.sessionID,
-    session: req.session,
-  });
-});
 
 // Updated login endpoint: authenticate against users table and set session.user
 app.post('/login', async (req, res) => {
@@ -134,6 +125,10 @@ app.post('/logout', (req, res) => {
 app.get('/private', isAuth, (req, res) => {
   res.json({ message: 'This is a protected resource', user: req.session.user });
 });
+
+// Test endpoint: increments a session counter and returns session data
+const swaggerFile = require('./swagger/swagger_output.json'); // generated file
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerFile));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
