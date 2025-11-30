@@ -39,20 +39,13 @@ router.post('/', isAuth, async (req, res) => {
 // Returns all cards with name and full image URL (if present)
 router.get('/', isAuth, async (req, res) => {
     try {
-        const [rows] = await db.execute('SELECT id, name, image FROM card');
+        const [rows] = await db.execute('SELECT id, name, image FROM card ');
         const cards = (rows || []).map((r) => {
-            let url = null;
-            if (r.image && containerClient) {
-                try {
-                    url = containerClient.getBlockBlobClient(r.image).url;
-                } catch (e) {
-                    url = null;
-                }
-            }
+
             return {
                 id: r.id,
                 name: r.name,
-                image: r.image ? { filename: r.image, url } : null,
+                image: r.image
             };
         });
         return res.status(200).json({ ok: true, cards });
@@ -106,7 +99,7 @@ router.post('/:id/image', isAuth, upload.single('image'), async (req, res) => {
         const resized = probe.resize({ width: 1200, withoutEnlargement: true }).jpeg({ quality: 80 });
         const processedBuffer = await resized.toBuffer();
         const outMeta = await sharp(processedBuffer).metadata();
-        const filename = `${Date.now()}-${Math.floor(Math.random() * 1e9)}.jpg`;
+        let filename = `${Date.now()}-${Math.floor(Math.random() * 1e9)}.jpg`;
 
         // upload buffer to Azure Blob Storage
         const blockBlobClient = containerClient.getBlockBlobClient(filename);
@@ -116,6 +109,8 @@ router.post('/:id/image', isAuth, upload.single('image'), async (req, res) => {
 
         const publicPath = blockBlobClient.url;
 
+        filename = "https://aui.blob.core.windows.net/uploads/" + filename;
+
         // update card record with image filename
         await db.execute(`UPDATE card SET image = ? WHERE id = ?`, [filename, cardId]);
 
@@ -124,7 +119,7 @@ router.post('/:id/image', isAuth, upload.single('image'), async (req, res) => {
             card: {
                 id: cardId,
                 name: card.name,
-                image: { filename, url: publicPath, width: outMeta.width, height: outMeta.height },
+                image: filename,
             },
         });
     } catch (err) {

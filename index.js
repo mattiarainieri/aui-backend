@@ -44,7 +44,7 @@ app.use(
       httpOnly: true,
       secure: false, // set to true if you serve via HTTPS in production
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 24 * 60 * 60 * 1000 * 365, // 24 hours
     },
   })
 );
