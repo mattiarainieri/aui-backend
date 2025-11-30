@@ -39,13 +39,16 @@ router.post('/', isAuth, async (req, res) => {
 // Returns all cards with name and full image URL (if present)
 router.get('/', isAuth, async (req, res) => {
     try {
-        const [rows] = await db.execute('SELECT id, name, image FROM card ');
-        const cards = (rows || []).map((r) => {
+        let [rows] = await db.execute('SELECT id, name, image, tags, description FROM card ');
 
+
+        const cards = (rows || []).map((r) => {
             return {
                 id: r.id,
                 name: r.name,
-                image: r.image
+                image: r.image,
+                tags: r.tags,
+                description: r.description
             };
         });
         return res.status(200).json({ ok: true, cards });
